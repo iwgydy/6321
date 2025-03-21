@@ -1,3 +1,4 @@
+const https = require('https');
 const express = require('express');
 const bodyParser = require('body-parser');
 const request = require('request');
@@ -8,6 +9,11 @@ const FormData = require('form-data');
 
 const app = express();
 app.use(bodyParser.json());
+
+const options = {
+  key: fs.readFileSync('/etc/letsencrypt/live/sujwodjnxnavwwck.vipv2boxth.xyz/privkey.pem'),
+  cert: fs.readFileSync('/etc/letsencrypt/live/sujwodjnxnavwwck.vipv2boxth.xyz/fullchain.pem')
+};
 
 const API_URL = 'https://bots.easy-peasy.ai/bot/9bc091b4-8477-4844-8b53-a354244f53e8/api';
 const API_KEY = '5528a40e-e4cc-4414-bb01-995f43a55949';
@@ -166,6 +172,7 @@ app.get('/webhook', (req, res) => {
 });
 
 app.post('/webhook', async (req, res) => {
+  console.log('Webhook received!');
   const entries = req.body.entry;
   if (!entries || !entries[0] || !entries[0].messaging) {
     return res.sendStatus(200);
@@ -215,4 +222,6 @@ if (!fs.existsSync(tempDir)) {
   fs.mkdirSync(tempDir);
 }
 
-app.listen(80, () => console.log('Server is running on port 80'));
+https.createServer(options, app).listen(443, () => {
+  console.log('Webhook server running on port 443 (HTTPS)');
+});
