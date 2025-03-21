@@ -18,7 +18,7 @@ const headers = {
 };
 
 const VERIFY_TOKEN = 'mysecretoken';
-const PAGE_ACCESS_TOKEN = 'EAA69YPCejwEBO7C9mqFloc55x3wrytcTLZAjg6ZAWf7IvXTisxjBtFvi0cMH1FQoVQ45aOqxI0qCDCBbxRf1vlo0cY7qDQaeWlgkmM7ZANEbBCHhkGPGB2N6vJ3g0Qk4oQhYE47fwspRKAEqp8SmHh3ZBhmQNqbyA7POIsbtIaZAkbFDMGZAbOGVBm5wDI5bnjOAZDZD';
+const PAGE_ACCESS_TOKEN = '';
 
 global.autoReplyEnabled = false;
 global.users = new Set();
