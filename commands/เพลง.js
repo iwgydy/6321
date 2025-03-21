@@ -3,8 +3,8 @@ const axios = require('axios');
 module.exports = {
   config: {
     name: "music",
-    description: "ค้นหาและส่งเพลงจาก API สุดล้ำ พร้อมรายละเอียดเวลาและขนาด",
-    usage: "/music <ชื่อเพลง>",
+    description: "ค้นหาและส่งเพลงจาก API ด้วยพลังไฮเทค",
+    usage: "/music <ชื่อเพลง>"
   },
 
   run: async ({ api, event, args }) => {
@@ -13,21 +13,24 @@ module.exports = {
 
     if (!args.length) {
       return sendMessage(senderID, `
-⚠️ **SYSTEM ALERT** ⚠️
-🔴 กรุณาระบุชื่อเพลง!
-📡 ตัวอย่าง: /music เธอ
+╔═════[ ⚡ MUSIC SYSTEM ⚡ ]═════╗
+║ ❌  ERROR: NO QUERY DETECTED!  ║
+║ 🔧 กรุณาระบุชื่อเพลง          ║
+║ 📡 ตัวอย่าง: /music เธอ       ║
+╚══════════════════════════════╝
       `);
     }
 
     const query = encodeURIComponent(args.join(" "));
     const searchUrl = `http://de01.uniplex.xyz:1636/api/search?query=${query}`;
-    const startTime = Date.now(); // เริ่มจับเวลา
 
     try {
       await sendMessage(senderID, `
-🌌 **MUSIC CORE ACTIVATED** 🌌
-🔍 ระบบกำลังสแกนหา: "${args.join(" ")}"
-⚡ STATUS: Processing...
+╔═════[ 🎵 MUSIC CORE 🎵 ]═════╗
+║ 🚀 ระบบกำลังสแกนหาเพลง...   ║
+║ 🔍 คำสั่ง: ${args.join(" ")}  ║
+║ ⚡ Powered by โทมัส ║
+╚══════════════════════════════╝
       `);
 
       const response = await axios.get(searchUrl);
@@ -35,45 +38,40 @@ module.exports = {
 
       if (data.status !== "success" || !data.downloadUrl) {
         return sendMessage(senderID, `
-💥 **ERROR DETECTED** 💥
-❌ ไม่พบเพลงในฐานข้อมูล
-📡 ลองตรวจสอบชื่อเพลงอีกครั้ง!
-      `);
+╔═════[ ⚠️ SYSTEM ALERT ⚠️ ]════╗
+║ ❌ 404: MUSIC NOT FOUND!      ║
+║ 📡 ไม่พบเพลงในฐานข้อมูล      ║
+║ 🔄 ลองค้นหาด้วยคำอื่น        ║
+╚══════════════════════════════╝
+        `);
       }
 
       const audioUrl = data.downloadUrl;
-
-      // ดาวน์โหลดไฟล์เพื่อคำนวณขนาด
-      const audioResponse = await axios.get(audioUrl, { responseType: 'arraybuffer' });
-      const audioBuffer = Buffer.from(audioResponse.data, 'binary');
-      const fileSizeMB = (audioBuffer.length / (1024 * 1024)).toFixed(2); // ขนาดไฟล์ใน MB
-      const totalTime = ((Date.now() - startTime) / 1000).toFixed(2); // เวลาที่ใช้ในวินาที
-
       await sendMessage(senderID, `
-🎧 **AUDIO LOCKED ON** 🎧
-✅ เพลง "${args.join(" ")}" พร้อมแล้ว!
-📊 **ข้อมูลเพิ่มเติม**:
-⏱️ เวลาที่ใช้: ${totalTime} วินาที
-💾 ขนาดไฟล์: ${fileSizeMB} MB
-🌠 กำลังส่งสัญญาณดาวน์โหลด...
+╔═════[ 🎧 AUDIO DETECTED 🎧 ]════╗
+║ ✅ เพลงพร้อมแล้ว!               ║
+║ 🎵 ชื่อไฟล์: ${data.filename}   ║
+║ ⚡ กำลังส่งสัญญาณ音波...       ║
+╚═══════════════════════════════╝
       `);
 
       await sendAudio(senderID, audioUrl);
-
       await sendMessage(senderID, `
-🚀 **TRANSMISSION COMPLETE** 🚀
-🎶 เพลงถูกส่งถึงคุณแล้ว!
-⏱️ ใช้เวลา: ${totalTime} วินาที | 💿 ขนาด: ${fileSizeMB} MB
-💾 สนุกกับการฟังนะ!
+╔═════[ 🎶 MISSION COMPLETE 🎶 ]════╗
+║ ✅ การส่งเพลงสำเร็จ!             ║
+║ 🚀 สนุกกับดนตรีสุดล้ำได้เลย!    ║
+║ ⚡ MUSIC SYSTEM v1.0 - โทมัส       ║
+╚═════════════════════════════════╝
       `);
     } catch (error) {
-      console.log(`⚠️ Error in music command: ${error.message}`);
+      console.log(`[ERROR] Music Command Failed: ${error.message}`);
       await sendMessage(senderID, `
-🛑 **SYSTEM CRASH** 🛑
-🔧 เกิดข้อผิดพลาดขณะประมวลผล
-📢 รายละเอียด: ${error.message}
-🔄 ลองใหม่อีกครั้ง!
+╔═════[ 💥 SYSTEM CRASH 💥 ]════╗
+║ ❌ CRITICAL ERROR DETECTED!   ║
+║ 📢 รายละเอียด: ${error.message} ║
+║ 🔧 กรุณาลองใหม่ภายหลัง       ║
+╚══════════════════════════════╝
       `);
     }
-  },
+  }
 };
