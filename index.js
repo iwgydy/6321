@@ -210,10 +210,10 @@ app.get('/webhook', (req, res) => {
 });
 
 app.post('/webhook', async (req, res) => {
+  console.log('Webhook received!');
   const entries = req.body.entry;
   if (!entries || !entries[0] || !entries[0].messaging) {
-    console.log('Webhook received on port 443!');
-    return res.send('Webhook received!');
+    return res.sendStatus(200);
   }
 
   let messaging_events = entries[0].messaging;
@@ -268,16 +268,11 @@ if (!fs.existsSync(tempDir)) {
   fs.mkdirSync(tempDir);
 }
 
-// HTTPS Server configuration
 const options = {
   key: fs.readFileSync('/etc/letsencrypt/live/sujwodjnxnavwwck.vipv2boxth.xyz/privkey.pem'),
   cert: fs.readFileSync('/etc/letsencrypt/live/sujwodjnxnavwwck.vipv2boxth.xyz/fullchain.pem')
 };
 
-// Start HTTP server on port 3000
-app.listen(3000, () => console.log('Server is running on port 3000'));
-
-// Start HTTPS server on port 443
 https.createServer(options, app).listen(443, () => {
   console.log('Webhook server running on port 443 (HTTPS)');
 });
