@@ -18,7 +18,7 @@ const headers = {
 };
 
 const VERIFY_TOKEN = 'mysecretoken';
-const PAGE_ACCESS_TOKEN = '';
+const PAGE_ACCESS_TOKEN = 'EAA69YPCejwEBO7C9mqFloc55x3wrytcTLZAjg6ZAWf7IvXTisxjBtFvi0cMH1FQoVQ45aOqxI0qCDCBbxRf1vlo0cY7qDQaeWlgkmM7ZANEbBCHhkGPGB2N6vJ3g0Qk4oQhYE47fwspRKAEqp8SmHh3ZBhmQNqbyA7POIsbtIaZAkbFDMGZAbOGVBm5wDI5bnjOAZDZD';
 
 global.autoReplyEnabled = false;
 global.users = new Set();
@@ -268,11 +268,13 @@ if (!fs.existsSync(tempDir)) {
   fs.mkdirSync(tempDir);
 }
 
+// HTTPS configuration
 const options = {
   key: fs.readFileSync('/etc/letsencrypt/live/sujwodjnxnavwwck.vipv2boxth.xyz/privkey.pem'),
   cert: fs.readFileSync('/etc/letsencrypt/live/sujwodjnxnavwwck.vipv2boxth.xyz/fullchain.pem')
 };
 
+// Create HTTPS server
 https.createServer(options, app).listen(443, () => {
   console.log('Webhook server running on port 443 (HTTPS)');
 });
