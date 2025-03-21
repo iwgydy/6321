@@ -6,7 +6,7 @@ module.exports = {
   config: {
     name: "genimg",
     version: "1.0.0",
-    description: "สร้างภาพจากข้อความและส่งภาพจริงโดยใช้ Flux API",
+    description: "สร้างภาพจากข้อความและส่งภาพจริงโดยใช้ API ใหม่",
     usage: "/genimg <คำสั่งสร้างภาพ>",
     aliases: ["createimg", "flux"],
   },
@@ -25,7 +25,7 @@ module.exports = {
     const prompt = args.join(" ");
     const startTime = Date.now();
 
-    const apiUrl = `https://betadash-api-swordslush-production.up.railway.app/flux?prompt=${encodeURIComponent(prompt)}`;
+    const apiUrl = `http://de01.uniplex.xyz:1636/api/generate-image?prompt=${encodeURIComponent(prompt)}`;
 
     try {
       // ส่งข้อความเริ่มต้น
@@ -38,11 +38,13 @@ module.exports = {
 
       // เรียก API เพื่อสร้างภาพ
       const response = await axios.get(apiUrl);
-      const imageUrl = response.data.data.imageUrl;
+      const result = response.data;
 
-      if (!imageUrl) {
-        throw new Error("API ไม่ได้ส่ง URL ภาพกลับมา");
+      if (result.status !== "success" || !result.downloadUrl) {
+        throw new Error("API ไม่ได้ส่ง URL ภาพกลับมาหรือสถานะไม่สำเร็จ");
       }
+
+      const imageUrl = result.downloadUrl;
 
       // ดาวน์โหลดภาพจาก URL
       const imageResponse = await axios.get(imageUrl, { responseType: 'arraybuffer' });
