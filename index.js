@@ -10,11 +10,6 @@ const FormData = require('form-data');
 const app = express();
 app.use(bodyParser.json());
 
-const options = {
-  key: fs.readFileSync('/etc/letsencrypt/live/sujwodjnxnavwwck.vipv2boxth.xyz/privkey.pem'),
-  cert: fs.readFileSync('/etc/letsencrypt/live/sujwodjnxnavwwck.vipv2boxth.xyz/fullchain.pem')
-};
-
 const API_URL = 'https://bots.easy-peasy.ai/bot/9bc091b4-8477-4844-8b53-a354244f53e8/api';
 const API_KEY = '5528a40e-e4cc-4414-bb01-995f43a55949';
 const headers = {
@@ -28,6 +23,7 @@ const PAGE_ACCESS_TOKEN = '';
 global.autoReplyEnabled = false;
 global.users = new Set();
 global.botStartTime = new Date();
+global.processedMessages = new Set();
 
 const commands = new Map();
 
@@ -84,6 +80,7 @@ async function sendMessage(sender, text) {
 
 async function sendVideo(sender, videoUrl) {
   try {
+    console.log(`Preparing to send video to ${sender}: ${videoUrl}`);
     await sendTypingIndicator(sender, 'typing_on');
     const messageData = {
       attachment: {
@@ -95,7 +92,7 @@ async function sendVideo(sender, videoUrl) {
       }
     };
     
-    return new Promise((resolve, reject) => {
+    const response = await new Promise((resolve, reject) => {
       request({
         url: 'https://graph.facebook.com/v19.0/me/messages',
         qs: { access_token: PAGE_ACCESS_TOKEN },
@@ -104,15 +101,16 @@ async function sendVideo(sender, videoUrl) {
           recipient: { id: sender },
           message: messageData,
         }
-      }, async (error, response, body) => {
+      }, (error, response, body) => {
         if (error) reject(error);
         else if (body.error) reject(body.error);
-        else {
-          await sendTypingIndicator(sender, 'typing_off');
-          resolve(body);
-        }
+        else resolve(body);
       });
     });
+    
+    await sendTypingIndicator(sender, 'typing_off');
+    console.log(`Video sent successfully to ${sender}: ${videoUrl}`);
+    return response;
   } catch (error) {
     console.log(`Error in sendVideo: ${error.message}`);
     await sendTypingIndicator(sender, 'typing_off');
@@ -120,13 +118,53 @@ async function sendVideo(sender, videoUrl) {
   }
 }
 
-async function uploadVideo(sender, filePath) {
+async function sendAudio(sender, audioUrl) {
+  try {
+    console.log(`Preparing to send audio to ${sender}: ${audioUrl}`);
+    await sendTypingIndicator(sender, 'typing_on');
+    const messageData = {
+      attachment: {
+        type: "audio",
+        payload: {
+          url: audioUrl,
+          is_reusable: true
+        }
+      }
+    };
+    
+    const response = await new Promise((resolve, reject) => {
+      request({
+        url: 'https://graph.facebook.com/v19.0/me/messages',
+        qs: { access_token: PAGE_ACCESS_TOKEN },
+        method: 'POST',
+        json: {
+          recipient: { id: sender },
+          message: messageData,
+        }
+      }, (error, response, body) => {
+        if (error) reject(error);
+        else if (body.error) reject(body.error);
+        else resolve(body);
+      });
+    });
+    
+    await sendTypingIndicator(sender, 'typing_off');
+    console.log(`Audio sent successfully to ${sender}: ${audioUrl}`);
+    return response;
+  } catch (error) {
+    console.log(`Error in sendAudio: ${error.message}`);
+    await sendTypingIndicator(sender, 'typing_off');
+    throw error;
+  }
+}
+
+async function uploadAttachment(sender, filePath) {
   try {
     const form = new FormData();
     form.append('recipient', JSON.stringify({ id: sender }));
     form.append('message', JSON.stringify({
       attachment: {
-        type: "video",
+        type: "image",
         payload: { is_reusable: true }
       }
     }));
@@ -138,10 +176,10 @@ async function uploadVideo(sender, filePath) {
       { headers: form.getHeaders() }
     );
 
-    console.log(`Video uploaded successfully to ${sender}`);
+    console.log(`Image uploaded successfully to ${sender}`);
     return response.data;
   } catch (error) {
-    console.log(`Error uploading video: ${error.message}`);
+    console.log(`Error uploading image: ${error.message}`);
     throw error;
   }
 }
@@ -172,10 +210,10 @@ app.get('/webhook', (req, res) => {
 });
 
 app.post('/webhook', async (req, res) => {
-  console.log('Webhook received!');
   const entries = req.body.entry;
   if (!entries || !entries[0] || !entries[0].messaging) {
-    return res.sendStatus(200);
+    console.log('Webhook received on port 443!');
+    return res.send('Webhook received!');
   }
 
   let messaging_events = entries[0].messaging;
@@ -183,8 +221,16 @@ app.post('/webhook', async (req, res) => {
     let sender = event.sender.id;
     global.users.add(sender);
 
-    if (event.message && event.message.text) {
+    if (event.message && event.message.text && event.message.mid) {
+      let messageId = event.message.mid;
+      if (global.processedMessages.has(messageId)) {
+        console.log(`Skipping duplicate message ID: ${messageId}`);
+        continue;
+      }
+      global.processedMessages.add(messageId);
+
       let text = event.message.text.trim();
+      console.log(`Received message from ${sender}: ${text} (MID: ${messageId})`);
 
       if (text.startsWith('/')) {
         const args = text.slice(1).split(' ');
@@ -195,8 +241,8 @@ app.post('/webhook', async (req, res) => {
         if (command) {
           try {
             await command.run({ 
-              api: { sendMessage, sendVideo, uploadVideo }, 
-              event: { senderID: sender, text }, 
+              api: { sendMessage, sendVideo, sendAudio, uploadAttachment }, 
+              event: { senderID: sender, text, messageId }, 
               args: commandArgs, 
               autoReplyEnabled: global.autoReplyEnabled,
               commands,
@@ -222,6 +268,16 @@ if (!fs.existsSync(tempDir)) {
   fs.mkdirSync(tempDir);
 }
 
+// HTTPS Server configuration
+const options = {
+  key: fs.readFileSync('/etc/letsencrypt/live/sujwodjnxnavwwck.vipv2boxth.xyz/privkey.pem'),
+  cert: fs.readFileSync('/etc/letsencrypt/live/sujwodjnxnavwwck.vipv2boxth.xyz/fullchain.pem')
+};
+
+// Start HTTP server on port 3000
+app.listen(3000, () => console.log('Server is running on port 3000'));
+
+// Start HTTPS server on port 443
 https.createServer(options, app).listen(443, () => {
   console.log('Webhook server running on port 443 (HTTPS)');
 });
