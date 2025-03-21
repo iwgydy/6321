@@ -10,23 +10,86 @@ const FormData = require('form-data');
 const app = express();
 app.use(bodyParser.json());
 
-const API_URL = 'https://bots.easy-peasy.ai/bot/9bc091b4-8477-4844-8b53-a354244f53e8/api';
-const API_KEY = '5528a40e-e4cc-4414-bb01-995f43a55949';
-const headers = {
-  'content-type': 'application/json',
-  'x-api-key': API_KEY
+// SSL Certificate options
+const options = {
+  key: fs.readFileSync('/etc/letsencrypt/live/sujwodjnxnavwwck.vipv2boxth.xyz/privkey.pem'),
+  cert: fs.readFileSync('/etc/letsencrypt/live/sujwodjnxnavwwck.vipv2boxth.xyz/fullchain.pem')
 };
 
+// Bot API configurations
+const BOTS = {
+  friend: {
+    API_URL: 'https://bots.easy-peasy.ai/bot/9bc091b4-8477-4844-8b53-a354244f53e8/api',
+    API_KEY: '5528a40e-e4cc-4414-bb01-995f43a55949'
+  },
+  lover: {
+    API_URL: 'https://bots.easy-peasy.ai/bot/75c584ca-25a4-4b85-8d4d-31cf40ed01ae/api',
+    API_KEY: '3df1ec92-324a-44ff-bbc9-55add33842fa'
+  }
+};
+
+const headers = (botType) => ({
+  'content-type': 'application/json',
+  'x-api-key': BOTS[botType].API_KEY
+});
+
 const VERIFY_TOKEN = 'mysecretoken';
-const PAGE_ACCESS_TOKEN = 'EAA69YPCejwEBO2oCJAiQOX5gZAeMYBYF04EBENRiWKYd3PqQqsbWFkURhl4mHvsgu6erl8ZBHeqBslOpSLExPtF6vjmZAWByBwVJ1ZA0jdcJnSgunehqA3zeVQU8dnjnWuLKNtZBXabtbWZAGVRwLcPwHSWWaZCru4GtuOFBYvq7NricLCNdzJA8wf4qypPjc40dAZDZD';
+const PAGE_ACCESS_TOKEN = 'EAA69YPCejwEBO7C9mqFloc55x3wrytcTLZAjg6ZAWf7IvXTisxjBtFvi0cMH1FQoVQ45aOqxI0qCDCBbxRf1vlo0cY7qDQaeWlgkmM7ZANEbBCHhkGPGB2N6vJ3g0Qk4oQhYE47fwspRKAEqp8SmHh3ZBhmQNqbyA7POIsbtIaZAkbFDMGZAbOGVBm5wDI5bnjOAZDZD';
 
 global.autoReplyEnabled = false;
 global.users = new Set();
 global.botStartTime = new Date();
 global.processedMessages = new Set();
 
+// User data file
+const DATA_FILE = path.join(__dirname, 'df.json');
+
+// Load or initialize user data
+let userData = {};
+if (fs.existsSync(DATA_FILE)) {
+  userData = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
+} else {
+  userData = { users: {} };
+  fs.writeFileSync(DATA_FILE, JSON.stringify(userData, null, 2));
+}
+
+// User history in memory
+const userHistory = new Map();
+
+// Save user data to file
+function saveUserData() {
+  fs.writeFileSync(DATA_FILE, JSON.stringify(userData, null, 2));
+}
+
+// Get user data
+function getUserData(sender) {
+  if (!userData.users[sender]) {
+    userData.users[sender] = {
+      selectedBot: 'friend'
+    };
+    saveUserData();
+  }
+  return userData.users[sender];
+}
+
+// Get user history
+function getUserHistory(sender, botType) {
+  const userKey = `${sender}:${botType}`;
+  if (!userHistory.has(userKey)) {
+    userHistory.set(userKey, []);
+  }
+  return userHistory.get(userKey);
+}
+
+// Update user history
+function updateUserHistory(sender, botType, newHistory) {
+  const userKey = `${sender}:${botType}`;
+  userHistory.set(userKey, newHistory);
+}
+
 const commands = new Map();
 
+// Load commands from commands folder
 const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
 for (const file of commandFiles) {
   const command = require(`./commands/${file}`);
@@ -186,14 +249,23 @@ async function uploadAttachment(sender, filePath) {
 
 async function callBotAPI(sender, message) {
   try {
-    const response = await axios.post(API_URL, {
+    const user = getUserData(sender);
+    const botType = user.selectedBot;
+    const history = getUserHistory(sender, botType);
+
+    history.push({ type: 'human', text: message });
+
+    const response = await axios.post(BOTS[botType].API_URL, {
       message: message,
-      history: [],
+      history: history,
       stream: false,
       include_sources: false
-    }, { headers, timeout: 10000 });
-    
+    }, { headers: headers(botType), timeout: 10000 });
+
     const reply = response.data.bot?.text || "ไม่ได้รับคำตอบจาก API";
+    history.push({ type: 'ai', text: reply });
+    updateUserHistory(sender, botType, history);
+
     await sendMessage(sender, reply);
   } catch (error) {
     console.log(`❌ API Error: ${error.message}`);
@@ -201,6 +273,32 @@ async function callBotAPI(sender, message) {
   }
 }
 
+// Select bot command
+commands.set('selectbot', {
+  config: {
+    name: 'selectbot'
+  },
+  run: async ({ api, event, args }) => {
+    const { senderID } = event;
+    if (!args[0]) {
+      return api.sendMessage(senderID, 'กรุณาระบุประเภทบอท: /selectbot friend หรือ /selectbot lover');
+    }
+
+    const botType = args[0].toLowerCase();
+    if (botType !== 'friend' && botType !== 'lover') {
+      return api.sendMessage(senderID, 'ประเภทบอทไม่ถูกต้อง ใช้: /selectbot friend หรือ /selectbot lover');
+    }
+
+    const user = getUserData(senderID);
+    user.selectedBot = botType;
+    saveUserData();
+
+    const botName = botType === 'friend' ? 'ฟิวเพื่อน' : 'ฟิวแฟน';
+    await api.sendMessage(senderID, `เลือกบอท ${botName} แล้ว! ลองคุยได้เลย 😊`);
+  }
+});
+
+// Webhook verification
 app.get('/webhook', (req, res) => {
   if (req.query['hub.verify_token'] === VERIFY_TOKEN) {
     res.send(req.query['hub.challenge']);
@@ -209,6 +307,7 @@ app.get('/webhook', (req, res) => {
   }
 });
 
+// Webhook handler
 app.post('/webhook', async (req, res) => {
   console.log('Webhook received!');
   const entries = req.body.entry;
@@ -263,18 +362,13 @@ app.post('/webhook', async (req, res) => {
   res.sendStatus(200);
 });
 
+// Create temp directory if it doesn't exist
 const tempDir = path.join(__dirname, 'temp');
 if (!fs.existsSync(tempDir)) {
   fs.mkdirSync(tempDir);
 }
 
-// HTTPS configuration
-const options = {
-  key: fs.readFileSync('/etc/letsencrypt/live/sujwodjnxnavwwck.vipv2boxth.xyz/privkey.pem'),
-  cert: fs.readFileSync('/etc/letsencrypt/live/sujwodjnxnavwwck.vipv2boxth.xyz/fullchain.pem')
-};
-
-// Create HTTPS server
+// Start HTTPS server
 https.createServer(options, app).listen(443, () => {
   console.log('Webhook server running on port 443 (HTTPS)');
 });
