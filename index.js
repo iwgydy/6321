@@ -10,6 +10,12 @@ const FormData = require('form-data');
 const app = express();
 app.use(bodyParser.json());
 
+// การตั้งค่า HTTPS โดยใช้ Let's Encrypt certificates
+const options = {
+  key: fs.readFileSync('/etc/letsencrypt/live/sujwodjnxnavwwck.vipv2boxth.xyz/privkey.pem'),
+  cert: fs.readFileSync('/etc/letsencrypt/live/sujwodjnxnavwwck.vipv2boxth.xyz/fullchain.pem')
+};
+
 // API configuration for all bots
 const BOTS = {
   friend: {
@@ -334,6 +340,7 @@ app.get('/webhook', (req, res) => {
 });
 
 app.post('/webhook', async (req, res) => {
+  console.log('Webhook received!');
   const entries = req.body.entry;
   if (!entries || !entries[0] || !entries[0].messaging) {
     return res.sendStatus(200);
@@ -385,7 +392,7 @@ app.post('/webhook', async (req, res) => {
       }
     }
   }
-  res.sendStatus(200);
+  res.send('Webhook received!');
 });
 
 const tempDir = path.join(__dirname, 'temp');
@@ -393,13 +400,7 @@ if (!fs.existsSync(tempDir)) {
   fs.mkdirSync(tempDir);
 }
 
-// กำหนดตัวเลือกสำหรับ HTTPS
-const options = {
-  key: fs.readFileSync('/etc/letsencrypt/live/sujwodjnxnavwwck.vipv2boxth.xyz/privkey.pem'),
-  cert: fs.readFileSync('/etc/letsencrypt/live/sujwodjnxnavwwck.vipv2boxth.xyz/fullchain.pem')
-};
-
-// รันเซิร์ฟเวอร์ HTTPS ที่พอร์ต 443
+// รันเซิร์ฟเวอร์ด้วย HTTPS บนพอร์ต 443
 https.createServer(options, app).listen(443, () => {
-  console.log('Server is running on port 443 (HTTPS)');
+  console.log('Webhook server running on port 443 (HTTPS)');
 });
