@@ -1,4 +1,3 @@
-const https = require('https');
 const express = require('express');
 const bodyParser = require('body-parser');
 const request = require('request');
@@ -10,13 +9,7 @@ const FormData = require('form-data');
 const app = express();
 app.use(bodyParser.json());
 
-// SSL Certificate options
-const options = {
-  key: fs.readFileSync('/etc/letsencrypt/live/sujwodjnxnavwwck.vipv2boxth.xyz/privkey.pem'),
-  cert: fs.readFileSync('/etc/letsencrypt/live/sujwodjnxnavwwck.vipv2boxth.xyz/fullchain.pem')
-};
-
-// Bot API configurations
+// API configuration for all bots
 const BOTS = {
   friend: {
     API_URL: 'https://bots.easy-peasy.ai/bot/9bc091b4-8477-4844-8b53-a354244f53e8/api',
@@ -25,6 +18,22 @@ const BOTS = {
   lover: {
     API_URL: 'https://bots.easy-peasy.ai/bot/75c584ca-25a4-4b85-8d4d-31cf40ed01ae/api',
     API_KEY: '3df1ec92-324a-44ff-bbc9-55add33842fa'
+  },
+  sister: {
+    API_URL: 'https://bots.easy-peasy.ai/bot/cccb9d31-6f20-4550-bbd7-7d125d76680c/api',
+    API_KEY: 'd9a1294a-0c77-489b-9ba8-c09dc8039518'
+  },
+  brother: {
+    API_URL: 'https://bots.easy-peasy.ai/bot/f789b0e4-5e58-4f9b-8241-d5b8e8e33a7f/api',
+    API_KEY: '9c3eb2d5-34ae-47ed-a8f6-3732c157ad1c'
+  },
+  sister2: {
+    API_URL: 'https://bots.easy-peasy.ai/bot/78484977-0062-4560-8dd0-a4cec104a69e/api',
+    API_KEY: '0e98b7f5-3ea7-4166-9089-0cced9de7e34'
+  },
+  brother2: {
+    API_URL: 'https://bots.easy-peasy.ai/bot/36e79163-0e87-4590-8de0-ed7164299f1c/api',
+    API_KEY: '355e1823-6fca-49e7-9b09-6067274ba060'
   }
 };
 
@@ -41,10 +50,8 @@ global.users = new Set();
 global.botStartTime = new Date();
 global.processedMessages = new Set();
 
-// User data file
 const DATA_FILE = path.join(__dirname, 'df.json');
 
-// Load or initialize user data
 let userData = {};
 if (fs.existsSync(DATA_FILE)) {
   userData = JSON.parse(fs.readFileSync(DATA_FILE, 'utf8'));
@@ -53,26 +60,23 @@ if (fs.existsSync(DATA_FILE)) {
   fs.writeFileSync(DATA_FILE, JSON.stringify(userData, null, 2));
 }
 
-// User history in memory
 const userHistory = new Map();
+const lastMessageTime = {}; // เก็บเวลาที่ผู้ใช้ส่งข้อความล่าสุด
 
-// Save user data to file
 function saveUserData() {
   fs.writeFileSync(DATA_FILE, JSON.stringify(userData, null, 2));
 }
 
-// Get user data
 function getUserData(sender) {
   if (!userData.users[sender]) {
     userData.users[sender] = {
-      selectedBot: 'friend'
+      selectedBot: 'friend' // Default to friend bot
     };
     saveUserData();
   }
   return userData.users[sender];
 }
 
-// Get user history
 function getUserHistory(sender, botType) {
   const userKey = `${sender}:${botType}`;
   if (!userHistory.has(userKey)) {
@@ -81,7 +85,6 @@ function getUserHistory(sender, botType) {
   return userHistory.get(userKey);
 }
 
-// Update user history
 function updateUserHistory(sender, botType, newHistory) {
   const userKey = `${sender}:${botType}`;
   userHistory.set(userKey, newHistory);
@@ -89,7 +92,6 @@ function updateUserHistory(sender, botType, newHistory) {
 
 const commands = new Map();
 
-// Load commands from commands folder
 const commandFiles = fs.readdirSync('./commands').filter(file => file.endsWith('.js'));
 for (const file of commandFiles) {
   const command = require(`./commands/${file}`);
@@ -273,7 +275,35 @@ async function callBotAPI(sender, message) {
   }
 }
 
-// Select bot command
+// ข้อความที่บอทจะส่งเมื่อผู้ใช้ไม่ได้แชทนานเกิน 1 นาที
+const inactiveMessages = {
+  friend: "เฮ้! ไม่ได้คุยกันนานเลยนะ คิดถึงจัง",
+  lover: "ที่รัก ไม่ได้คุยกันนานเลยนะ คิดถึงมากๆ เลย",
+  sister: "พี่จ๋า ไม่ได้คุยกันนานเลยนะ คิดถึงพี่จัง",
+  brother: "พี่ชาย ไม่ได้คุยกันนานเลยนะ คิดถึงพี่มากๆ เลย",
+  sister2: "น้องสาว ไม่ได้คุยกันนานเลยนะ คิดถึงน้องจัง",
+  brother2: "น้องชาย ไม่ได้คุยกันนานเลยนะ คิดถึงน้องมากๆ เลย"
+};
+
+// ฟังก์ชันตรวจสอบผู้ใช้ที่ไม่ได้ส่งข้อความนานเกิน 1 นาที
+async function checkInactiveUsers() {
+  const now = Date.now();
+  for (const sender of global.users) {
+    const lastTime = lastMessageTime[sender] || 0;
+    if (now - lastTime > 86400000) { // 1 วัน = 86400000 มิลลิวินาที
+      const user = getUserData(sender);
+      const botType = user.selectedBot;
+      const message = inactiveMessages[botType];
+      await sendMessage(sender, message);
+      lastMessageTime[sender] = now; // อัปเดตเวลาเพื่อป้องกันการส่งซ้ำทันที
+    }
+  }
+}
+
+// เรียก checkInactiveUsers ทุก 1 ชั่วโมง
+setInterval(checkInactiveUsers, 3600000);
+
+// Modified selectbot command to include all bots
 commands.set('selectbot', {
   config: {
     name: 'selectbot'
@@ -281,24 +311,23 @@ commands.set('selectbot', {
   run: async ({ api, event, args }) => {
     const { senderID } = event;
     if (!args[0]) {
-      return api.sendMessage(senderID, 'กรุณาระบุประเภทบอท: /selectbot friend หรือ /selectbot lover');
+      return api.sendMessage(senderID, 'กรุณาระบุประเภทบอท: /selectbot friend หรือ /selectbot lover หรือ /selectbot sister หรือ /selectbot brother หรือ /selectbot sister2 หรือ /selectbot brother2');
     }
 
     const botType = args[0].toLowerCase();
-    if (botType !== 'friend' && botType !== 'lover') {
-      return api.sendMessage(senderID, 'ประเภทบอทไม่ถูกต้อง ใช้: /selectbot friend หรือ /selectbot lover');
+    if (!BOTS[botType]) {
+      return api.sendMessage(senderID, 'ประเภทบอทไม่ถูกต้อง โปรดเลือก: /selectbot friend (เพื่อน) | /selectbot lover (แฟน) | /selectbot sister (น้องสาว) | /selectbot brother (น้องชาย) | /selectbot sister2 (พี่สาว) | /selectbot brother2 (พี่ชาย)');
     }
 
     const user = getUserData(senderID);
     user.selectedBot = botType;
     saveUserData();
 
-    const botName = botType === 'friend' ? 'ฟิวเพื่อน' : 'ฟิวแฟน';
+    const botName = botType === 'friend' ? 'ฟิวเพื่อน' : botType === 'lover' ? 'ฟิวแฟน' : botType === 'sister' ? 'ฟิวน้องสาว' : botType === 'brother' ? 'ฟิวน้องชาย' : botType === 'sister2' ? 'ฟิวพี่สาว' : 'ฟิวพี่ชาย';
     await api.sendMessage(senderID, `เลือกบอท ${botName} แล้ว! ลองคุยได้เลย 😊`);
   }
 });
 
-// Webhook verification
 app.get('/webhook', (req, res) => {
   if (req.query['hub.verify_token'] === VERIFY_TOKEN) {
     res.send(req.query['hub.challenge']);
@@ -307,9 +336,7 @@ app.get('/webhook', (req, res) => {
   }
 });
 
-// Webhook handler
 app.post('/webhook', async (req, res) => {
-  console.log('Webhook received!');
   const entries = req.body.entry;
   if (!entries || !entries[0] || !entries[0].messaging) {
     return res.sendStatus(200);
@@ -330,6 +357,9 @@ app.post('/webhook', async (req, res) => {
 
       let text = event.message.text.trim();
       console.log(`Received message from ${sender}: ${text} (MID: ${messageId})`);
+
+      // อัปเดตเวลาที่ผู้ใช้ส่งข้อความล่าสุด
+      lastMessageTime[sender] = Date.now();
 
       if (text.startsWith('/')) {
         const args = text.slice(1).split(' ');
@@ -362,13 +392,29 @@ app.post('/webhook', async (req, res) => {
   res.sendStatus(200);
 });
 
-// Create temp directory if it doesn't exist
 const tempDir = path.join(__dirname, 'temp');
 if (!fs.existsSync(tempDir)) {
   fs.mkdirSync(tempDir);
 }
 
-// Start HTTPS server
-https.createServer(options, app).listen(443, () => {
-  console.log('Webhook server running on port 443 (HTTPS)');
+const http = require('http');
+const https = require('https');
+
+// Create HTTP server
+http.createServer(app).listen(80, '0.0.0.0', () => {
+  console.log('HTTP Server running on port 80');
 });
+
+// Only create HTTPS server if certificates exist
+try {
+  const options = {
+    key: fs.readFileSync('/etc/letsencrypt/live/sujwodjnxnavwwck.vipv2boxth.xyz/privkey.pem'),
+    cert: fs.readFileSync('/etc/letsencrypt/live/sujwodjnxnavwwck.vipv2boxth.xyz/fullchain.pem')
+  };
+  
+  https.createServer(options, app).listen(443, '0.0.0.0', () => {
+    console.log('HTTPS Server running on port 443');
+  });
+} catch (err) {
+  console.log('HTTPS certificates not found, running HTTP only');
+}
