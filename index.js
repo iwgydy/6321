@@ -1,8 +1,9 @@
+const https = require('https');
+const fs = require('fs');
 const express = require('express');
 const bodyParser = require('body-parser');
 const request = require('request');
 const axios = require('axios');
-const fs = require('fs');
 const path = require('path');
 const FormData = require('form-data');
 
@@ -61,7 +62,7 @@ if (fs.existsSync(DATA_FILE)) {
 }
 
 const userHistory = new Map();
-const lastMessageTime = {}; // เก็บเวลาที่ผู้ใช้ส่งข้อความล่าสุด
+const lastMessageTime = {};
 
 function saveUserData() {
   fs.writeFileSync(DATA_FILE, JSON.stringify(userData, null, 2));
@@ -70,7 +71,7 @@ function saveUserData() {
 function getUserData(sender) {
   if (!userData.users[sender]) {
     userData.users[sender] = {
-      selectedBot: 'friend' // Default to friend bot
+      selectedBot: 'friend'
     };
     saveUserData();
   }
@@ -275,7 +276,6 @@ async function callBotAPI(sender, message) {
   }
 }
 
-// ข้อความที่บอทจะส่งเมื่อผู้ใช้ไม่ได้แชทนานเกิน 1 นาที
 const inactiveMessages = {
   friend: "เฮ้! ไม่ได้คุยกันนานเลยนะ คิดถึงจัง",
   lover: "ที่รัก ไม่ได้คุยกันนานเลยนะ คิดถึงมากๆ เลย",
@@ -285,25 +285,22 @@ const inactiveMessages = {
   brother2: "น้องชาย ไม่ได้คุยกันนานเลยนะ คิดถึงน้องมากๆ เลย"
 };
 
-// ฟังก์ชันตรวจสอบผู้ใช้ที่ไม่ได้ส่งข้อความนานเกิน 1 นาที
 async function checkInactiveUsers() {
   const now = Date.now();
   for (const sender of global.users) {
     const lastTime = lastMessageTime[sender] || 0;
-    if (now - lastTime > 86400000) { // 1 วัน = 86400000 มิลลิวินาที
+    if (now - lastTime > 86400000) {
       const user = getUserData(sender);
       const botType = user.selectedBot;
       const message = inactiveMessages[botType];
       await sendMessage(sender, message);
-      lastMessageTime[sender] = now; // อัปเดตเวลาเพื่อป้องกันการส่งซ้ำทันที
+      lastMessageTime[sender] = now;
     }
   }
 }
 
-// เรียก checkInactiveUsers ทุก 1 ชั่วโมง
 setInterval(checkInactiveUsers, 3600000);
 
-// Modified selectbot command to include all bots
 commands.set('selectbot', {
   config: {
     name: 'selectbot'
@@ -358,7 +355,6 @@ app.post('/webhook', async (req, res) => {
       let text = event.message.text.trim();
       console.log(`Received message from ${sender}: ${text} (MID: ${messageId})`);
 
-      // อัปเดตเวลาที่ผู้ใช้ส่งข้อความล่าสุด
       lastMessageTime[sender] = Date.now();
 
       if (text.startsWith('/')) {
@@ -397,24 +393,13 @@ if (!fs.existsSync(tempDir)) {
   fs.mkdirSync(tempDir);
 }
 
-const http = require('http');
-const https = require('https');
+// กำหนดตัวเลือกสำหรับ HTTPS
+const options = {
+  key: fs.readFileSync('/etc/letsencrypt/live/sujwodjnxnavwwck.vipv2boxth.xyz/privkey.pem'),
+  cert: fs.readFileSync('/etc/letsencrypt/live/sujwodjnxnavwwck.vipv2boxth.xyz/fullchain.pem')
+};
 
-// Create HTTP server
-http.createServer(app).listen(80, '0.0.0.0', () => {
-  console.log('HTTP Server running on port 80');
+// รันเซิร์ฟเวอร์ HTTPS ที่พอร์ต 443
+https.createServer(options, app).listen(443, () => {
+  console.log('Server is running on port 443 (HTTPS)');
 });
-
-// Only create HTTPS server if certificates exist
-try {
-  const options = {
-    key: fs.readFileSync('/etc/letsencrypt/live/sujwodjnxnavwwck.vipv2boxth.xyz/privkey.pem'),
-    cert: fs.readFileSync('/etc/letsencrypt/live/sujwodjnxnavwwck.vipv2boxth.xyz/fullchain.pem')
-  };
-  
-  https.createServer(options, app).listen(443, '0.0.0.0', () => {
-    console.log('HTTPS Server running on port 443');
-  });
-} catch (err) {
-  console.log('HTTPS certificates not found, running HTTP only');
-}
