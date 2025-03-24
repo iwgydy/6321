@@ -1,16 +1,16 @@
 const https = require('https');
-const fs = require('fs');
 const express = require('express');
 const bodyParser = require('body-parser');
 const request = require('request');
 const axios = require('axios');
+const fs = require('fs');
 const path = require('path');
 const FormData = require('form-data');
 
 const app = express();
 app.use(bodyParser.json());
 
-// การตั้งค่า HTTPS โดยใช้ Let's Encrypt certificates
+// SSL certificate options
 const options = {
   key: fs.readFileSync('/etc/letsencrypt/live/sujwodjnxnavwwck.vipv2boxth.xyz/privkey.pem'),
   cert: fs.readFileSync('/etc/letsencrypt/live/sujwodjnxnavwwck.vipv2boxth.xyz/fullchain.pem')
@@ -108,7 +108,7 @@ for (const file of commandFiles) {
 function sendTypingIndicator(sender, action = 'typing_on') {
   return new Promise((resolve, reject) => {
     request({
-      url: 'https://graph.facebook.com/v19.0/me/messages',
+      url: '-api.facebook.com/v19.0/me/messages',
       qs: { access_token: PAGE_ACCESS_TOKEN },
       method: 'POST',
       json: {
@@ -276,6 +276,13 @@ async function callBotAPI(sender, message) {
     updateUserHistory(sender, botType, history);
 
     await sendMessage(sender, reply);
+
+    try {
+      const ttsURL = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(reply)}&tl=th&client=tw-ob`;
+      await sendAudio(sender, ttsURL);
+    } catch (ttsError) {
+      console.log('TTS Error:', ttsError.message);
+    }
   } catch (error) {
     console.log(`❌ API Error: ${error.message}`);
     await sendMessage(sender, "❌ ไม่สามารถติดต่อ API ได้");
@@ -305,7 +312,7 @@ async function checkInactiveUsers() {
   }
 }
 
-setInterval(checkInactiveUsers, 3600000);
+setInterval(checkInactiveUsers, 7200000);
 
 commands.set('selectbot', {
   config: {
@@ -385,7 +392,10 @@ app.post('/webhook', async (req, res) => {
             await sendMessage(sender, "❌ เกิดข้อผิดพลาดในการรันคำสั่ง");
           }
         } else {
-          await sendMessage(sender, "❌ ไม่รู้จักคำสั่งนี้");
+          const user = getUserData(sender);
+          user.selectedBot = 'sister2';
+          saveUserData();
+          await callBotAPI(sender, text);
         }
       } else {
         await callBotAPI(sender, text);
@@ -400,7 +410,7 @@ if (!fs.existsSync(tempDir)) {
   fs.mkdirSync(tempDir);
 }
 
-// รันเซิร์ฟเวอร์ด้วย HTTPS บนพอร์ต 443
+// Create HTTPS server
 https.createServer(options, app).listen(443, () => {
   console.log('Webhook server running on port 443 (HTTPS)');
 });
