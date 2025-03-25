@@ -1,4 +1,4 @@
-const https = require('https');
+
 const express = require('express');
 const bodyParser = require('body-parser');
 const request = require('request');
@@ -6,15 +6,10 @@ const axios = require('axios');
 const fs = require('fs');
 const path = require('path');
 const FormData = require('form-data');
+const https = require('https');
 
 const app = express();
 app.use(bodyParser.json());
-
-// SSL certificate options
-const options = {
-  key: fs.readFileSync('/etc/letsencrypt/live/sujwodjnxnavwwck.vipv2boxth.xyz/privkey.pem'),
-  cert: fs.readFileSync('/etc/letsencrypt/live/sujwodjnxnavwwck.vipv2boxth.xyz/fullchain.pem')
-};
 
 // API configuration for all bots
 const BOTS = {
@@ -108,7 +103,7 @@ for (const file of commandFiles) {
 function sendTypingIndicator(sender, action = 'typing_on') {
   return new Promise((resolve, reject) => {
     request({
-      url: '-api.facebook.com/v19.0/me/messages',
+      url: 'https://graph.facebook.com/v19.0/me/messages',
       qs: { access_token: PAGE_ACCESS_TOKEN },
       method: 'POST',
       json: {
@@ -314,30 +309,6 @@ async function checkInactiveUsers() {
 
 setInterval(checkInactiveUsers, 7200000);
 
-commands.set('selectbot', {
-  config: {
-    name: 'selectbot'
-  },
-  run: async ({ api, event, args }) => {
-    const { senderID } = event;
-    if (!args[0]) {
-      return api.sendMessage(senderID, 'กรุณาระบุประเภทบอท: /selectbot friend หรือ /selectbot lover หรือ /selectbot sister หรือ /selectbot brother หรือ /selectbot sister2 หรือ /selectbot brother2');
-    }
-
-    const botType = args[0].toLowerCase();
-    if (!BOTS[botType]) {
-      return api.sendMessage(senderID, 'ประเภทบอทไม่ถูกต้อง โปรดเลือก: /selectbot friend (เพื่อน) | /selectbot lover (แฟน) | /selectbot sister (น้องสาว) | /selectbot brother (น้องชาย) | /selectbot sister2 (พี่สาว) | /selectbot brother2 (พี่ชาย)');
-    }
-
-    const user = getUserData(senderID);
-    user.selectedBot = botType;
-    saveUserData();
-
-    const botName = botType === 'friend' ? 'ฟิวเพื่อน' : botType === 'lover' ? 'ฟิวแฟน' : botType === 'sister' ? 'ฟิวน้องสาว' : botType === 'brother' ? 'ฟิวน้องชาย' : botType === 'sister2' ? 'ฟิวพี่สาว' : 'ฟิวพี่ชาย';
-    await api.sendMessage(senderID, `เลือกบอท ${botName} แล้ว! ลองคุยได้เลย 😊`);
-  }
-});
-
 app.get('/webhook', (req, res) => {
   if (req.query['hub.verify_token'] === VERIFY_TOKEN) {
     res.send(req.query['hub.challenge']);
@@ -347,7 +318,6 @@ app.get('/webhook', (req, res) => {
 });
 
 app.post('/webhook', async (req, res) => {
-  console.log('Webhook received!');
   const entries = req.body.entry;
   if (!entries || !entries[0] || !entries[0].messaging) {
     return res.sendStatus(200);
@@ -402,7 +372,7 @@ app.post('/webhook', async (req, res) => {
       }
     }
   }
-  res.send('Webhook received!');
+  res.sendStatus(200);
 });
 
 const tempDir = path.join(__dirname, 'temp');
@@ -410,7 +380,23 @@ if (!fs.existsSync(tempDir)) {
   fs.mkdirSync(tempDir);
 }
 
-// Create HTTPS server
-https.createServer(options, app).listen(443, () => {
-  console.log('Webhook server running on port 443 (HTTPS)');
+// Create HTTP server
+const httpServer = app.listen(443, '0.0.0.0', () => {
+  console.log('HTTP Server is running on port 443');
 });
+
+// Try to create HTTPS server if certificates exist
+try {
+  const options = {
+    key: fs.readFileSync('/etc/letsencrypt/live/sujwodjnxnavwwck.vipv2boxth.xyz/privkey.pem'),
+    cert: fs.readFileSync('/etc/letsencrypt/live/sujwodjnxnavwwck.vipv2boxth.xyz/fullchain.pem')
+  };
+  
+  const httpsServer = https.createServer(options, app);
+  httpsServer.listen(443, '0.0.0.0', () => {
+    console.log('HTTPS Server is running on port 443');
+  });
+} catch (error) {
+  console.log('Could not start HTTPS server:', error.message);
+  console.log('Running in HTTP mode only');
+}
