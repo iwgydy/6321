@@ -1,4 +1,3 @@
-const https = require('https');
 const express = require('express');
 const bodyParser = require('body-parser');
 const request = require('request');
@@ -9,12 +8,6 @@ const FormData = require('form-data');
 
 const app = express();
 app.use(bodyParser.json());
-
-// HTTPS options
-const options = {
-  key: fs.readFileSync('/etc/letsencrypt/live/sujwodjnxnavwwck.vipv2boxth.xyz/privkey.pem'),
-  cert: fs.readFileSync('/etc/letsencrypt/live/sujwodjnxnavwwck.vipv2boxth.xyz/fullchain.pem')
-};
 
 // API configuration for all bots
 const BOTS = {
@@ -410,6 +403,6 @@ if (!fs.existsSync(tempDir)) {
   fs.mkdirSync(tempDir);
 }
 
-https.createServer(options, app).listen(443, () => {
-  console.log('Webhook server running on port 443 (HTTPS)');
+app.listen(3000, () => {
+  console.log('Webhook server running on port 3000');
 });
